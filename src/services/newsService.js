@@ -1,14 +1,13 @@
 import axios from 'axios';
 
-const API_KEY = '3948b34867317d54e1af49ea41d5cac1';
+// NewsData.io — works directly from browser, no CORS issues
+// Free: 200 requests/day, 10 articles/request, 100,000+ sources, 206 countries
+// Works on localhost AND any deployed site — no proxy needed!
+const API_KEY = 'pub_c590ab86373e450eb95c3816460caf52';
+const BASE    = 'https://newsdata.io/api/1';
 
-// Dev:  Vite proxy at /gnews → https://gnews.io  (set up in vite.config.js)
-// Prod: Vercel serverless function at /api/gnews  (set up in api/gnews.js)
-const IS_DEV = import.meta.env.DEV;
-const BASE   = IS_DEV ? '/gnews/api/v4' : '/api/gnews';
-
-const GNEWS_CATEGORIES = {
-  general:       'general',
+const CATEGORY_MAP = {
+  general:       'top',
   technology:    'technology',
   business:      'business',
   science:       'science',
@@ -17,62 +16,63 @@ const GNEWS_CATEGORIES = {
   entertainment: 'entertainment',
 };
 
-async function get(endpoint, params) {
-  let url, queryParams;
-
-  if (IS_DEV) {
-    // Dev: call /gnews/api/v4/<endpoint>?...&apikey=KEY
-    url         = `${BASE}/${endpoint}`;
-    queryParams = { ...params, apikey: API_KEY };
-  } else {
-    // Prod: call /api/gnews?endpoint=<endpoint>&...  (no apikey in URL, serverless adds it)
-    url         = BASE;
-    queryParams = { endpoint, ...params };
+export async function fetchByCategory(category = 'general') {
+  const cat = CATEGORY_MAP[category] || 'top';
+  const response = await axios.get(`${BASE}/latest`, {
+    params: {
+      apikey:   API_KEY,
+      language: 'en',
+      category: cat,
+      size:     10,
+    },
+  });
+  if (response.data.status !== 'success') {
+    throw new Error(response.data.results?.message || 'Failed to fetch news');
   }
-
-  const response = await axios.get(url, { params: queryParams });
-
-  if (!response.data || !response.data.articles) {
-    throw new Error(response.data?.errors?.[0] || 'No articles returned');
-  }
-
   return {
     status:   'ok',
-    articles: response.data.articles.map(normalizeArticle),
+    articles: response.data.results
+      .filter(a => a.title && a.image_url)
+      .map(normalizeArticle),
   };
 }
 
-export async function fetchTopHeadlines(category = 'general') {
-  return get('top-headlines', {
-    category: GNEWS_CATEGORIES[category] || 'general',
-    lang: 'en',
-    max: 10,
-  });
-}
-
-export async function fetchByCategory(category = 'general') {
-  return fetchTopHeadlines(category);
+export async function fetchTopHeadlines() {
+  return fetchByCategory('general');
 }
 
 export async function searchNews(query) {
-  return get('search', {
-    q:       query,
-    lang:    'en',
-    max:     10,
-    sortby:  'publishedAt',
+  const response = await axios.get(`${BASE}/latest`, {
+    params: {
+      apikey:   API_KEY,
+      language: 'en',
+      q:        query,
+      size:     10,
+    },
   });
+  if (response.data.status !== 'success') {
+    throw new Error(response.data.results?.message || 'Search failed');
+  }
+  return {
+    status:   'ok',
+    articles: response.data.results
+      .filter(a => a.title)
+      .map(normalizeArticle),
+  };
 }
 
 function normalizeArticle(a) {
   return {
     title:       a.title,
-    description: a.description,
-    content:     a.content,
-    url:         a.url,
-    urlToImage:  a.image,
-    publishedAt: a.publishedAt,
-    source:      { name: a.source?.name || 'News' },
-    author:      a.source?.name || null,
+    description: a.description || '',
+    content:     a.content || a.description || '',
+    url:         a.link,
+    urlToImage:  a.image_url || `https://picsum.photos/seed/${encodeURIComponent(a.title?.slice(0,10) || 'news')}/800/500`,
+    publishedAt: a.pubDate,
+    source:      { name: a.source_id || a.source_name || 'News' },
+    author:      a.creator?.[0] || null,
+    country:     a.country?.[0] || '',
+    category:    a.category?.[0] || '',
   };
 }
 
