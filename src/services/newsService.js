@@ -27,12 +27,12 @@ export async function fetchByCategory(category = 'general') {
     size:     10,
   };
 
-  // India: filter by country, all categories, sorted newest first
+  // India: filter by country code 'in', sorted newest first
   if (isIndia) {
     params.country  = 'in';
     params.language = 'en';
-    params.prioritydomain = 'top'; // top Indian sources first
     delete params.category;
+    delete params.prioritydomain;
   }
 
   const response = await axios.get(`${BASE}/latest`, { params });

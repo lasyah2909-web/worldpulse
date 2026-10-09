@@ -41,9 +41,9 @@ export default function NewsCard({ article, onSelect, index, featured }) {
         )}
         <div className="card-image-tint" />
 
-        {/* Source badge */}
+        {/* Source badge — no flag, just source name */}
         <div className="card-source-badge">
-          {countryFlag} {article.source?.name || 'News'}
+          {article.source?.name || 'News'}
         </div>
 
         {featured && (
@@ -95,9 +95,12 @@ export default function NewsCard({ article, onSelect, index, featured }) {
 // Country code → flag emoji
 function getFlag(countryCode) {
   if (!countryCode) return '';
-  const code = countryCode.toUpperCase();
   try {
-    return code.split('').map(c => String.fromCodePoint(0x1F1E6 - 65 + c.charCodeAt(0))).join('');
+    const code = countryCode.toUpperCase().slice(0, 2);
+    if (!/^[A-Z]{2}$/.test(code)) return '';
+    const cp1 = 0x1F1E6 + (code.charCodeAt(0) - 65);
+    const cp2 = 0x1F1E6 + (code.charCodeAt(1) - 65);
+    return String.fromCodePoint(cp1) + String.fromCodePoint(cp2);
   } catch {
     return '';
   }
