@@ -27,11 +27,13 @@ export async function fetchByCategory(category = 'general') {
     size:     10,
   };
 
-  // For India section — filter by country code
+  // India: filter by country, all categories, sorted newest first
   if (isIndia) {
     params.country  = 'in';
     params.language = 'en';
-    delete params.category; // let all categories through, just India
+    params.timeframe = 24; // last 24 hours only
+    params.prioritydomain = 'top'; // top Indian sources first
+    delete params.category;
   }
 
   const response = await axios.get(`${BASE}/latest`, { params });
@@ -40,12 +42,14 @@ export async function fetchByCategory(category = 'general') {
     throw new Error(response.data.results?.message || 'Failed to fetch news');
   }
 
-  return {
-    status:   'ok',
-    articles: response.data.results
-      .filter(a => a.title)
-      .map(normalizeArticle),
-  };
+  let articles = response.data.results
+    .filter(a => a.title)
+    .map(normalizeArticle);
+
+  // Sort by newest first
+  articles.sort((a, b) => new Date(b.publishedAt) - new Date(a.publishedAt));
+
+  return { status: 'ok', articles };
 }
 
 export async function fetchTopHeadlines() {
