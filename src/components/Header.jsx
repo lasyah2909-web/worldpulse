@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import './Header.css';
 
-export default function Header({ lastUpdated, onRefresh, onApiKeyClick, isDemoMode }) {
+export default function Header({ lastUpdated, onRefresh, isDemoMode }) {
   const [currentTime, setCurrentTime] = useState(new Date());
   const [spinning, setSpinning] = useState(false);
 
@@ -53,6 +53,9 @@ export default function Header({ lastUpdated, onRefresh, onApiKeyClick, isDemoMo
               Updated {lastUpdated.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
             </span>
           )}
+          {isDemoMode && (
+            <span className="demo-indicator">⚠️ Demo Mode</span>
+          )}
           <button
             className={`btn-refresh ${spinning ? 'spinning' : ''}`}
             onClick={handleRefresh}
@@ -62,13 +65,6 @@ export default function Header({ lastUpdated, onRefresh, onApiKeyClick, isDemoMo
               <path d="M23 4v6h-6M1 20v-6h6" />
               <path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15" />
             </svg>
-          </button>
-          <button
-            className={`btn-apikey ${isDemoMode ? 'demo' : ''}`}
-            onClick={onApiKeyClick}
-            title="Set API Key"
-          >
-            🔑 {isDemoMode ? 'Add Key' : 'API Key'}
           </button>
         </div>
       </div>

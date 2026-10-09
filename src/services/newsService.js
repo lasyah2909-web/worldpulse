@@ -1,54 +1,77 @@
 import axios from 'axios';
 
-// In development (localhost), we can call NewsAPI directly.
-// In production (Vercel), we call our serverless proxy at /api/news
-// which keeps the API key secret and bypasses the free-plan domain restriction.
+// GNews API — works from localhost AND deployed sites (no domain restriction)
+// Free plan: 100 requests/day, 10 articles per request
+// Docs: https://docs.gnews.io/
 
-const IS_DEV = import.meta.env.DEV;
-const DIRECT_URL = 'https://newsapi.org/v2';
-const PROXY_URL = '/api/news';
+const BASE_URL = 'https://gnews.io/api/v4';
+const API_KEY = '3948b34867317d54e1af49ea41d5cac1';
 
-async function callApi(endpoint, params, apiKey) {
-  if (IS_DEV && apiKey) {
-    // Direct call from localhost — free plan allows this
-    const response = await axios.get(`${DIRECT_URL}/${endpoint}`, {
-      params: { ...params, apiKey },
-    });
-    if (response.data.status !== 'ok') {
-      throw new Error(response.data.message || 'NewsAPI error');
-    }
-    return response.data;
-  } else {
-    // Production: go through our Vercel serverless proxy
-    const response = await axios.get(PROXY_URL, {
-      params: { endpoint, ...params },
-    });
-    if (response.data.status !== 'ok') {
-      throw new Error(response.data.message || 'NewsAPI error');
-    }
-    return response.data;
+// GNews category mapping
+const GNEWS_CATEGORIES = {
+  general:       'general',
+  technology:    'technology',
+  business:      'business',
+  science:       'science',
+  health:        'health',
+  sports:        'sports',
+  entertainment: 'entertainment',
+};
+
+export async function fetchTopHeadlines(category = 'general') {
+  const response = await axios.get(`${BASE_URL}/top-headlines`, {
+    params: {
+      category: GNEWS_CATEGORIES[category] || 'general',
+      lang: 'en',
+      max: 10,
+      apikey: API_KEY,
+    },
+  });
+  if (!response.data.articles) {
+    throw new Error('No articles returned from GNews');
   }
+  // Normalize to match our app's expected shape
+  return {
+    status: 'ok',
+    articles: response.data.articles.map(normalizeArticle),
+  };
 }
 
-export async function fetchTopHeadlines(apiKey, country = 'us') {
-  return callApi('top-headlines', { country, pageSize: 30 }, apiKey);
+export async function fetchByCategory(category = 'general') {
+  return fetchTopHeadlines(category);
 }
 
-export async function fetchByCategory(apiKey, category = 'general', country = 'us') {
-  const params = { country, pageSize: 30 };
-  if (category && category !== 'general') {
-    params.category = category;
+export async function searchNews(query) {
+  const response = await axios.get(`${BASE_URL}/search`, {
+    params: {
+      q: query,
+      lang: 'en',
+      max: 10,
+      sortby: 'publishedAt',
+      apikey: API_KEY,
+    },
+  });
+  if (!response.data.articles) {
+    throw new Error('No articles returned from GNews');
   }
-  return callApi('top-headlines', params, apiKey);
+  return {
+    status: 'ok',
+    articles: response.data.articles.map(normalizeArticle),
+  };
 }
 
-export async function searchNews(apiKey, query, pageSize = 30) {
-  return callApi('everything', {
-    q: query,
-    pageSize,
-    sortBy: 'publishedAt',
-    language: 'en',
-  }, apiKey);
+// Normalize GNews article shape to match what our components expect
+function normalizeArticle(article) {
+  return {
+    title: article.title,
+    description: article.description,
+    content: article.content,
+    url: article.url,
+    urlToImage: article.image,
+    publishedAt: article.publishedAt,
+    source: { name: article.source?.name || 'GNews' },
+    author: article.source?.name || null,
+  };
 }
 
 export function formatTimeAgo(dateString) {
