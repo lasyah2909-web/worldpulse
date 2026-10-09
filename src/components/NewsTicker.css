@@ -1,0 +1,95 @@
+.ticker-wrapper {
+  display: flex;
+  align-items: center;
+  background: linear-gradient(90deg, #1a0a2e, #0f0f1a, #1a0a2e);
+  border-top: 1px solid rgba(124, 58, 237, 0.3);
+  border-bottom: 1px solid rgba(124, 58, 237, 0.3);
+  overflow: hidden;
+  height: 42px;
+}
+
+.ticker-label {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  background: linear-gradient(135deg, #7c3aed, #ec4899);
+  color: white;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 2px;
+  padding: 0 18px;
+  height: 100%;
+  white-space: nowrap;
+  flex-shrink: 0;
+  box-shadow: 4px 0 20px rgba(124, 58, 237, 0.5);
+}
+
+.ticker-dot {
+  width: 7px;
+  height: 7px;
+  background: #fff;
+  border-radius: 50%;
+  animation: live-blink 1s ease-in-out infinite;
+}
+
+.ticker-track {
+  flex: 1;
+  overflow: hidden;
+  position: relative;
+}
+
+.ticker-track::before,
+.ticker-track::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 40px;
+  z-index: 2;
+  pointer-events: none;
+}
+
+.ticker-track::before {
+  left: 0;
+  background: linear-gradient(to right, #0f0f1a, transparent);
+}
+
+.ticker-track::after {
+  right: 0;
+  background: linear-gradient(to left, #0f0f1a, transparent);
+}
+
+.ticker-content {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  white-space: nowrap;
+  animation: ticker 80s linear infinite;
+  width: max-content;
+}
+
+.ticker-content:hover {
+  animation-play-state: paused;
+}
+
+.ticker-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--text-secondary);
+  font-size: 13px;
+  font-weight: 400;
+  padding: 0 32px;
+  transition: color 0.2s;
+  cursor: default;
+}
+
+.ticker-item:hover {
+  color: var(--text-primary);
+}
+
+.ticker-bullet {
+  color: var(--accent-purple);
+  font-size: 8px;
+  opacity: 0.7;
+}

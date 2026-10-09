@@ -1,0 +1,86 @@
+import React, { useState } from 'react';
+import { formatTimeAgo, CATEGORY_COLORS } from '../services/newsService.js';
+import './NewsCard.css';
+
+const FALLBACK_COLORS = [
+  '#7c3aed', '#ec4899', '#06b6d4',
+  '#f97316', '#10b981', '#f59e0b', '#8b5cf6',
+];
+
+export default function NewsCard({ article, onSelect, index, featured }) {
+  const [imgError, setImgError] = useState(false);
+  const accentColor = FALLBACK_COLORS[index % FALLBACK_COLORS.length];
+
+  const handleClick = () => onSelect(article);
+
+  return (
+    <article
+      className={`news-card ${featured ? 'featured' : ''}`}
+      onClick={handleClick}
+      role="button"
+      tabIndex={0}
+      onKeyDown={e => e.key === 'Enter' && handleClick()}
+      style={{ '--accent': accentColor, animationDelay: `${index * 40}ms` }}
+    >
+      {/* Image */}
+      <div className="card-image-wrap">
+        {article.urlToImage && !imgError ? (
+          <img
+            src={article.urlToImage}
+            alt={article.title}
+            className="card-image"
+            loading="lazy"
+            onError={() => setImgError(true)}
+          />
+        ) : (
+          <div className="card-image-placeholder" style={{ background: `linear-gradient(135deg, ${accentColor}33, ${accentColor}11)` }}>
+            <span className="placeholder-icon">📰</span>
+          </div>
+        )}
+        <div className="card-image-tint" />
+
+        {/* Source badge */}
+        <div className="card-source-badge">
+          {article.source?.name || 'News'}
+        </div>
+
+        {/* Featured label */}
+        {featured && (
+          <div className="card-featured-label">
+            ⭐ Featured
+          </div>
+        )}
+      </div>
+
+      {/* Body */}
+      <div className="card-body">
+        <h2 className="card-title">{article.title}</h2>
+
+        {article.description && (
+          <p className="card-description">{article.description}</p>
+        )}
+
+        <div className="card-footer">
+          <div className="card-meta">
+            <span className="card-time">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="13" height="13">
+                <circle cx="12" cy="12" r="10" />
+                <path d="M12 6v6l4 2" />
+              </svg>
+              {formatTimeAgo(article.publishedAt)}
+            </span>
+          </div>
+          <button className="card-read-btn" onClick={e => { e.stopPropagation(); onSelect(article); }}>
+            Read
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="13" height="13">
+              <path d="M5 12h14M12 5l7 7-7 7" />
+            </svg>
+          </button>
+        </div>
+      </div>
+
+      {/* Hover accent line */}
+      <div className="card-accent-line" />
+    </article>
+  );
+}
