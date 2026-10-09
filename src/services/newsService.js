@@ -1,23 +1,15 @@
 import axios from 'axios';
 
+// NewsData.io supports CORS — works directly from browser on ANY domain
+// No proxy needed, no serverless function needed
 const API_KEY = 'pub_c590ab86373e450eb95c3816460caf52';
-
-// Dev  → call NewsData.io directly (no CORS issue on localhost)
-// Prod → call our Vercel serverless function at /api/news (bypasses CORS)
-const IS_DEV = import.meta.env.DEV;
+const BASE    = 'https://newsdata.io/api/1/latest';
 
 async function apiFetch(params) {
-  if (IS_DEV) {
-    const res = await axios.get('https://newsdata.io/api/1/latest', {
-      params: { ...params, apikey: API_KEY },
-    });
-    return res.data;
-  } else {
-    const res = await axios.get('/api/proxy', {
-      params: { endpoint: 'latest', ...params },
-    });
-    return res.data;
-  }
+  const res = await axios.get(BASE, {
+    params: { ...params, apikey: API_KEY },
+  });
+  return res.data;
 }
 
 function dedup(articles) {
@@ -43,10 +35,7 @@ const CATEGORY_MAP = {
 export async function fetchByCategory(category = 'general') {
   const isIndia = category === 'india';
 
-  const params = {
-    language: 'en',
-    size:     10,
-  };
+  const params = { language: 'en', size: 10 };
 
   if (isIndia) {
     params.country = 'in';
