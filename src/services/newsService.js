@@ -31,7 +31,6 @@ export async function fetchByCategory(category = 'general') {
   if (isIndia) {
     params.country  = 'in';
     params.language = 'en';
-    params.timeframe = 24; // last 24 hours only
     params.prioritydomain = 'top'; // top Indian sources first
     delete params.category;
   }
