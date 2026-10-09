@@ -3,76 +3,34 @@ import axios from 'axios';
 const API_KEY = 'pub_c590ab86373e450eb95c3816460caf52';
 const BASE    = 'https://newsdata.io/api/1/latest';
 
+// ─── Core fetch ───────────────────────────────────────────────────────────────
 async function apiFetch(params) {
-  // Direct call — NewsData.io supports CORS from any domain including Vercel
   const res = await axios.get(BASE, {
     params: { ...params, apikey: API_KEY },
+    timeout: 10000,
   });
-  return res.data;
+  if (res.data.status !== 'success') {
+    throw new Error(res.data.results?.message || 'API error');
+  }
+  return res.data.results || [];
 }
 
+// ─── Deduplication ────────────────────────────────────────────────────────────
+// Dedup by title similarity — catches "Same headline from 3 sources" problem
 function dedup(articles) {
   const seen = new Set();
   return articles.filter(a => {
-    const key = a.title?.trim().toLowerCase();
-    if (!key || seen.has(key)) return false;
+    if (!a.title) return false;
+    // Normalise: lowercase, strip punctuation, collapse spaces
+    const key = a.title.toLowerCase().replace(/[^a-z0-9\s]/g, '').replace(/\s+/g, ' ').trim().slice(0, 80);
+    if (seen.has(key)) return false;
     seen.add(key);
     return true;
   });
 }
 
-const CATEGORY_MAP = {
-  general:       'top',
-  technology:    'technology',
-  business:      'business',
-  science:       'science',
-  health:        'health',
-  sports:        'sports',
-  entertainment: 'entertainment',
-};
-
-export async function fetchByCategory(category = 'general') {
-  const isIndia = category === 'india';
-
-  const params = { language: 'en', size: 10 };
-
-  if (isIndia) {
-    params.country = 'in';
-  } else {
-    params.category = CATEGORY_MAP[category] || 'top';
-  }
-
-  const data = await apiFetch(params);
-
-  if (data.status !== 'success') {
-    throw new Error(data.results?.message || 'Failed to fetch news');
-  }
-
-  let articles = data.results.filter(a => a.title).map(normalizeArticle);
-  articles = dedup(articles);
-  articles.sort((a, b) => new Date(b.publishedAt) - new Date(a.publishedAt));
-
-  return { status: 'ok', articles };
-}
-
-export async function fetchTopHeadlines() {
-  return fetchByCategory('general');
-}
-
-export async function searchNews(query) {
-  const data = await apiFetch({ language: 'en', q: query, size: 10 });
-
-  if (data.status !== 'success') {
-    throw new Error(data.results?.message || 'Search failed');
-  }
-
-  let articles = data.results.filter(a => a.title).map(normalizeArticle);
-  articles = dedup(articles);
-
-  return { status: 'ok', articles };
-}
-
-function normalizeArticle(a) {
+// ─── Normalise ────────────────────────────────────────────────────────────────
+function normalize(a) {
   return {
     title:       a.title,
     description: a.description || '',
@@ -86,16 +44,84 @@ function normalizeArticle(a) {
   };
 }
 
+function sortNewest(articles) {
+  return [...articles].sort((a, b) => new Date(b.publishedAt) - new Date(a.publishedAt));
+}
+
+// ─── Category map ─────────────────────────────────────────────────────────────
+const CATEGORY_MAP = {
+  general:       'top',
+  technology:    'technology',
+  business:      'business',
+  science:       'science',
+  health:        'health',
+  sports:        'sports',
+  entertainment: 'entertainment',
+};
+
+// ─── Main fetch ───────────────────────────────────────────────────────────────
+export async function fetchByCategory(category = 'general') {
+  if (category === 'india') {
+    return fetchIndiaNews();
+  }
+
+  const raw = await apiFetch({
+    language: 'en',
+    category: CATEGORY_MAP[category] || 'top',
+    size:     10,
+  });
+
+  const articles = sortNewest(dedup(raw.map(normalize)));
+  return { status: 'ok', articles };
+}
+
+export async function fetchTopHeadlines() {
+  return fetchByCategory('general');
+}
+
+// ─── India: fetch multiple categories in parallel ─────────────────────────────
+async function fetchIndiaNews() {
+  // Fetch top Indian news + specific categories simultaneously
+  const fetches = [
+    apiFetch({ country: 'in', language: 'en', size: 10 }),
+    apiFetch({ country: 'in', language: 'en', size: 10, category: 'top' }),
+    apiFetch({ country: 'in', language: 'en', size: 10, category: 'politics' }),
+    apiFetch({ country: 'in', language: 'en', size: 10, category: 'sports' }),
+    apiFetch({ country: 'in', language: 'en', size: 10, category: 'business' }),
+    apiFetch({ country: 'in', language: 'en', size: 10, category: 'entertainment' }),
+    apiFetch({ country: 'in', language: 'en', size: 10, category: 'technology' }),
+  ];
+
+  // Run all in parallel, ignore individual failures
+  const results = await Promise.allSettled(fetches);
+
+  const all = results
+    .filter(r => r.status === 'fulfilled')
+    .flatMap(r => r.value)
+    .map(normalize)
+    .filter(a => a.title);
+
+  const articles = sortNewest(dedup(all));
+
+  return { status: 'ok', articles };
+}
+
+// ─── Search ───────────────────────────────────────────────────────────────────
+export async function searchNews(query) {
+  const raw = await apiFetch({ language: 'en', q: query, size: 10 });
+  const articles = dedup(raw.map(normalize));
+  return { status: 'ok', articles };
+}
+
+// ─── Date helpers ─────────────────────────────────────────────────────────────
 export function formatTimeAgo(dateString) {
   if (!dateString) return '';
-  const date = new Date(dateString);
-  const now  = new Date();
-  const diff = Math.floor((now - date) / 1000);
+  const diff = Math.floor((Date.now() - new Date(dateString)) / 1000);
   if (diff < 60)     return 'Just now';
   if (diff < 3600)   return `${Math.floor(diff / 60)}m ago`;
   if (diff < 86400)  return `${Math.floor(diff / 3600)}h ago`;
   if (diff < 604800) return `${Math.floor(diff / 86400)}d ago`;
-  return date.toLocaleDateString();
+  return new Date(dateString).toLocaleDateString();
 }
 
 export function formatFullDate(dateString) {
@@ -106,6 +132,7 @@ export function formatFullDate(dateString) {
   });
 }
 
+// ─── Categories ───────────────────────────────────────────────────────────────
 export const CATEGORIES = [
   { id: 'general',       label: 'Top Stories',   emoji: '🌍', color: '#7c3aed' },
   { id: 'india',         label: 'India',         emoji: '🇮🇳', color: '#ff6b00' },
