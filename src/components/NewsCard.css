@@ -148,6 +148,14 @@
   gap: 5px;
   font-size: 12px;
   color: var(--text-muted);
+  cursor: default;
+}
+
+.card-fulldate {
+  font-size: 11px;
+  color: var(--text-muted);
+  opacity: 0.7;
+  white-space: nowrap;
 }
 
 .card-read-btn {

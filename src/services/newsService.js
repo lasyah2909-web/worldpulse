@@ -2,7 +2,6 @@ import axios from 'axios';
 
 // NewsData.io — works directly from browser, no CORS issues
 // Free: 200 requests/day, 10 articles/request, 100,000+ sources, 206 countries
-// Works on localhost AND any deployed site — no proxy needed!
 const API_KEY = 'pub_c590ab86373e450eb95c3816460caf52';
 const BASE    = 'https://newsdata.io/api/1';
 
@@ -14,25 +13,37 @@ const CATEGORY_MAP = {
   health:        'health',
   sports:        'sports',
   entertainment: 'entertainment',
+  india:         'top',   // India uses country filter, not category
 };
 
 export async function fetchByCategory(category = 'general') {
-  const cat = CATEGORY_MAP[category] || 'top';
-  const response = await axios.get(`${BASE}/latest`, {
-    params: {
-      apikey:   API_KEY,
-      language: 'en',
-      category: cat,
-      size:     10,
-    },
-  });
+  const isIndia = category === 'india';
+  const cat     = CATEGORY_MAP[category] || 'top';
+
+  const params = {
+    apikey:   API_KEY,
+    language: 'en',
+    category: cat,
+    size:     10,
+  };
+
+  // For India section — filter by country code
+  if (isIndia) {
+    params.country  = 'in';
+    params.language = 'en';
+    delete params.category; // let all categories through, just India
+  }
+
+  const response = await axios.get(`${BASE}/latest`, { params });
+
   if (response.data.status !== 'success') {
     throw new Error(response.data.results?.message || 'Failed to fetch news');
   }
+
   return {
     status:   'ok',
     articles: response.data.results
-      .filter(a => a.title && a.image_url)
+      .filter(a => a.title)
       .map(normalizeArticle),
   };
 }
@@ -69,13 +80,14 @@ function normalizeArticle(a) {
     url:         a.link,
     urlToImage:  a.image_url || `https://picsum.photos/seed/${encodeURIComponent(a.title?.slice(0,10) || 'news')}/800/500`,
     publishedAt: a.pubDate,
-    source:      { name: a.source_id || a.source_name || 'News' },
+    source:      { name: a.source_name || a.source_id || 'News' },
     author:      a.creator?.[0] || null,
     country:     a.country?.[0] || '',
     category:    a.category?.[0] || '',
   };
 }
 
+// Returns both relative time ("2h ago") and exact date/time
 export function formatTimeAgo(dateString) {
   if (!dateString) return '';
   const date = new Date(dateString);
@@ -88,8 +100,21 @@ export function formatTimeAgo(dateString) {
   return date.toLocaleDateString();
 }
 
+// Full readable timestamp e.g. "Oct 9, 2026 · 3:45 PM"
+export function formatFullDate(dateString) {
+  if (!dateString) return '';
+  return new Date(dateString).toLocaleString([], {
+    month:  'short',
+    day:    'numeric',
+    year:   'numeric',
+    hour:   '2-digit',
+    minute: '2-digit',
+  });
+}
+
 export const CATEGORIES = [
   { id: 'general',       label: 'Top Stories',   emoji: '🌍', color: '#7c3aed' },
+  { id: 'india',         label: 'India',         emoji: '🇮🇳', color: '#ff6b00' },
   { id: 'technology',    label: 'Tech',          emoji: '💻', color: '#06b6d4' },
   { id: 'business',      label: 'Business',      emoji: '📈', color: '#f97316' },
   { id: 'science',       label: 'Science',       emoji: '🔬', color: '#10b981' },
@@ -100,6 +125,7 @@ export const CATEGORIES = [
 
 export const CATEGORY_COLORS = {
   general:       '#7c3aed',
+  india:         '#ff6b00',
   technology:    '#06b6d4',
   business:      '#f97316',
   science:       '#10b981',

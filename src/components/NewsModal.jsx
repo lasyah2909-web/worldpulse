@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { formatTimeAgo } from '../services/newsService.js';
+import { formatTimeAgo, formatFullDate } from '../services/newsService.js';
 import './NewsModal.css';
 
 export default function NewsModal({ article, onClose }) {
@@ -50,6 +50,7 @@ export default function NewsModal({ article, onClose }) {
                 <circle cx="12" cy="12" r="10" /><path d="M12 6v6l4 2" />
               </svg>
               {formatTimeAgo(article.publishedAt)}
+              <span className="modal-fulldate"> · {formatFullDate(article.publishedAt)}</span>
             </span>
             {article.author && (
               <span className="modal-author">
