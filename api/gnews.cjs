@@ -1,5 +1,5 @@
-// Vercel Serverless Function — CommonJS format required
-// Proxies GNews API requests to avoid browser CORS restrictions
+// Vercel Serverless Function
+// .cjs extension ensures CommonJS even when package.json has "type": "module"
 
 module.exports = async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
