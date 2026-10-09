@@ -8,13 +8,11 @@ const IS_DEV = import.meta.env.DEV;
 
 async function apiFetch(params) {
   if (IS_DEV) {
-    // Direct call — works fine on localhost
     const res = await axios.get('https://newsdata.io/api/1/latest', {
       params: { ...params, apikey: API_KEY },
     });
     return res.data;
   } else {
-    // Serverless proxy — works on any deployed domain
     const res = await axios.get('/api/proxy', {
       params: { endpoint: 'latest', ...params },
     });
