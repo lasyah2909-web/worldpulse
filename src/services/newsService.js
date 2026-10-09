@@ -15,7 +15,7 @@ async function apiFetch(params) {
     return res.data;
   } else {
     // Serverless proxy — works on any deployed domain
-    const res = await axios.get('/api/news', {
+    const res = await axios.get('/api/proxy', {
       params: { endpoint: 'latest', ...params },
     });
     return res.data;
