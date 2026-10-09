@@ -1,11 +1,10 @@
 import axios from 'axios';
 
-// NewsData.io supports CORS — works directly from browser on ANY domain
-// No proxy needed, no serverless function needed
 const API_KEY = 'pub_c590ab86373e450eb95c3816460caf52';
 const BASE    = 'https://newsdata.io/api/1/latest';
 
 async function apiFetch(params) {
+  // Direct call — NewsData.io supports CORS from any domain including Vercel
   const res = await axios.get(BASE, {
     params: { ...params, apikey: API_KEY },
   });
