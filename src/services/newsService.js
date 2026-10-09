@@ -1,9 +1,36 @@
 import axios from 'axios';
 
-// NewsData.io — works directly from browser, no CORS issues
-// Free: 200 requests/day, 10 articles/request, 100,000+ sources, 206 countries
 const API_KEY = 'pub_c590ab86373e450eb95c3816460caf52';
-const BASE    = 'https://newsdata.io/api/1';
+
+// Dev  → call NewsData.io directly (no CORS issue on localhost)
+// Prod → call our Vercel serverless function at /api/news (bypasses CORS)
+const IS_DEV = import.meta.env.DEV;
+
+async function apiFetch(params) {
+  if (IS_DEV) {
+    // Direct call — works fine on localhost
+    const res = await axios.get('https://newsdata.io/api/1/latest', {
+      params: { ...params, apikey: API_KEY },
+    });
+    return res.data;
+  } else {
+    // Serverless proxy — works on any deployed domain
+    const res = await axios.get('/api/news', {
+      params: { endpoint: 'latest', ...params },
+    });
+    return res.data;
+  }
+}
+
+function dedup(articles) {
+  const seen = new Set();
+  return articles.filter(a => {
+    const key = a.title?.trim().toLowerCase();
+    if (!key || seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
 
 const CATEGORY_MAP = {
   general:       'top',
@@ -13,47 +40,30 @@ const CATEGORY_MAP = {
   health:        'health',
   sports:        'sports',
   entertainment: 'entertainment',
-  india:         'top',   // India uses country filter, not category
 };
 
 export async function fetchByCategory(category = 'general') {
   const isIndia = category === 'india';
-  const cat     = CATEGORY_MAP[category] || 'top';
 
   const params = {
-    apikey:   API_KEY,
     language: 'en',
-    category: cat,
     size:     10,
   };
 
   if (isIndia) {
-    params.country  = 'in';
-    params.language = 'en';
-    delete params.category;
-    delete params.prioritydomain;
+    params.country = 'in';
+  } else {
+    params.category = CATEGORY_MAP[category] || 'top';
   }
 
-  const response = await axios.get(`${BASE}/latest`, { params });
+  const data = await apiFetch(params);
 
-  if (response.data.status !== 'success') {
-    throw new Error(response.data.results?.message || 'Failed to fetch news');
+  if (data.status !== 'success') {
+    throw new Error(data.results?.message || 'Failed to fetch news');
   }
 
-  let articles = response.data.results
-    .filter(a => a.title)
-    .map(normalizeArticle);
-
-  // Remove duplicates by title
-  const seen = new Set();
-  articles = articles.filter(a => {
-    const key = a.title.trim().toLowerCase();
-    if (seen.has(key)) return false;
-    seen.add(key);
-    return true;
-  });
-
-  // Sort by newest first
+  let articles = data.results.filter(a => a.title).map(normalizeArticle);
+  articles = dedup(articles);
   articles.sort((a, b) => new Date(b.publishedAt) - new Date(a.publishedAt));
 
   return { status: 'ok', articles };
@@ -64,30 +74,14 @@ export async function fetchTopHeadlines() {
 }
 
 export async function searchNews(query) {
-  const response = await axios.get(`${BASE}/latest`, {
-    params: {
-      apikey:   API_KEY,
-      language: 'en',
-      q:        query,
-      size:     10,
-    },
-  });
-  if (response.data.status !== 'success') {
-    throw new Error(response.data.results?.message || 'Search failed');
+  const data = await apiFetch({ language: 'en', q: query, size: 10 });
+
+  if (data.status !== 'success') {
+    throw new Error(data.results?.message || 'Search failed');
   }
 
-  let articles = response.data.results
-    .filter(a => a.title)
-    .map(normalizeArticle);
-
-  // Remove duplicates
-  const seen = new Set();
-  articles = articles.filter(a => {
-    const key = a.title.trim().toLowerCase();
-    if (seen.has(key)) return false;
-    seen.add(key);
-    return true;
-  });
+  let articles = data.results.filter(a => a.title).map(normalizeArticle);
+  articles = dedup(articles);
 
   return { status: 'ok', articles };
 }
@@ -98,16 +92,14 @@ function normalizeArticle(a) {
     description: a.description || '',
     content:     a.content || a.description || '',
     url:         a.link,
-    urlToImage:  a.image_url || `https://picsum.photos/seed/${encodeURIComponent(a.title?.slice(0,10) || 'news')}/800/500`,
+    urlToImage:  a.image_url || null,
     publishedAt: a.pubDate,
     source:      { name: a.source_name || a.source_id || 'News' },
     author:      a.creator?.[0] || null,
     country:     a.country?.[0] || '',
-    category:    a.category?.[0] || '',
   };
 }
 
-// Returns both relative time ("2h ago") and exact date/time
 export function formatTimeAgo(dateString) {
   if (!dateString) return '';
   const date = new Date(dateString);
@@ -120,15 +112,11 @@ export function formatTimeAgo(dateString) {
   return date.toLocaleDateString();
 }
 
-// Full readable timestamp e.g. "Oct 9, 2026 · 3:45 PM"
 export function formatFullDate(dateString) {
   if (!dateString) return '';
   return new Date(dateString).toLocaleString([], {
-    month:  'short',
-    day:    'numeric',
-    year:   'numeric',
-    hour:   '2-digit',
-    minute: '2-digit',
+    month: 'short', day: 'numeric', year: 'numeric',
+    hour: '2-digit', minute: '2-digit',
   });
 }
 
