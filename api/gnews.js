@@ -1,8 +1,7 @@
-// Vercel Serverless Function
-// Proxies requests to GNews API to avoid CORS issues on the deployed site
-// URL pattern: /api/gnews?endpoint=top-headlines&category=general&...
+// Vercel Serverless Function — CommonJS format required
+// Proxies GNews API requests to avoid browser CORS restrictions
 
-export default async function handler(req, res) {
+module.exports = async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
@@ -12,8 +11,6 @@ export default async function handler(req, res) {
   }
 
   const API_KEY = '3948b34867317d54e1af49ea41d5cac1';
-
-  // Pull endpoint out, pass everything else as query params
   const { endpoint = 'top-headlines', ...params } = req.query;
 
   const allowed = ['top-headlines', 'search'];
@@ -29,6 +26,6 @@ export default async function handler(req, res) {
     const data = await response.json();
     return res.status(response.status).json(data);
   } catch (err) {
-    return res.status(500).json({ error: 'Failed to fetch from GNews', details: err.message });
+    return res.status(500).json({ error: 'Fetch failed', details: err.message });
   }
-}
+};
