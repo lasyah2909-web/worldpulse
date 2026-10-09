@@ -55,11 +55,27 @@
   width: 100%;
   height: 100%;
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
+  gap: 8px;
 }
 
-.placeholder-icon { font-size: 40px; opacity: 0.5; }
+.placeholder-letter {
+  font-size: 48px;
+  font-weight: 900;
+  font-family: 'Playfair Display', serif;
+  line-height: 1;
+  opacity: 0.8;
+}
+
+.placeholder-source {
+  font-size: 11px;
+  color: rgba(255,255,255,0.4);
+  text-transform: uppercase;
+  letter-spacing: 1.5px;
+  font-weight: 600;
+}
 
 .card-image-tint {
   position: absolute;

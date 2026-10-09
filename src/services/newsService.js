@@ -16,22 +16,58 @@ async function apiFetch(params) {
 }
 
 // ─── Deduplication ────────────────────────────────────────────────────────────
-// Dedup by title similarity — catches "Same headline from 3 sources" problem
+// Three-level dedup:
+// 1. Exact article_id match
+// 2. Normalised title match (first 60 chars, no punctuation)
+// 3. URL domain + first 6 words match (catches same story different headline)
 function dedup(articles) {
-  const seen = new Set();
+  const seenIds    = new Set();
+  const seenTitles = new Set();
+  const seenSlugs  = new Set();
+
   return articles.filter(a => {
     if (!a.title) return false;
-    // Normalise: lowercase, strip punctuation, collapse spaces
-    const key = a.title.toLowerCase().replace(/[^a-z0-9\s]/g, '').replace(/\s+/g, ' ').trim().slice(0, 80);
-    if (seen.has(key)) return false;
-    seen.add(key);
+
+    // Level 1 — article ID
+    if (a.articleId && seenIds.has(a.articleId)) return false;
+    if (a.articleId) seenIds.add(a.articleId);
+
+    // Level 2 — normalised title (first 60 chars)
+    const titleKey = a.title
+      .toLowerCase()
+      .replace(/[^a-z0-9\s]/g, '')
+      .replace(/\s+/g, ' ')
+      .trim()
+      .slice(0, 60);
+    if (seenTitles.has(titleKey)) return false;
+    seenTitles.add(titleKey);
+
+    // Level 3 — first 5 words slug (catches "Teen hopes to break long drought..." × 3 sources)
+    const words = titleKey.split(' ').slice(0, 5).join('-');
+    if (words.length > 10 && seenSlugs.has(words)) return false;
+    seenSlugs.add(words);
+
     return true;
   });
+}
+
+// ─── Fill missing images with a reliable placeholder ─────────────────────────
+function fillImage(article, index) {
+  if (article.urlToImage) return article;
+  // Use a deterministic but varied placeholder based on title hash
+  const seed = Math.abs(
+    article.title.split('').reduce((acc, c) => acc + c.charCodeAt(0), index * 31)
+  ) % 1000;
+  return {
+    ...article,
+    urlToImage: `https://picsum.photos/seed/${seed}/800/500`,
+  };
 }
 
 // ─── Normalise ────────────────────────────────────────────────────────────────
 function normalize(a) {
   return {
+    articleId:   a.article_id,
     title:       a.title,
     description: a.description || '',
     content:     a.content || a.description || '',
@@ -48,6 +84,11 @@ function sortNewest(articles) {
   return [...articles].sort((a, b) => new Date(b.publishedAt) - new Date(a.publishedAt));
 }
 
+function process(raw) {
+  const articles = sortNewest(dedup(raw.map(normalize)));
+  return articles.map(fillImage);
+}
+
 // ─── Category map ─────────────────────────────────────────────────────────────
 const CATEGORY_MAP = {
   general:       'top',
@@ -59,11 +100,9 @@ const CATEGORY_MAP = {
   entertainment: 'entertainment',
 };
 
-// ─── Main fetch ───────────────────────────────────────────────────────────────
+// ─── General category fetch ───────────────────────────────────────────────────
 export async function fetchByCategory(category = 'general') {
-  if (category === 'india') {
-    return fetchIndiaNews();
-  }
+  if (category === 'india') return fetchIndiaNews();
 
   const raw = await apiFetch({
     language: 'en',
@@ -71,18 +110,16 @@ export async function fetchByCategory(category = 'general') {
     size:     10,
   });
 
-  const articles = sortNewest(dedup(raw.map(normalize)));
-  return { status: 'ok', articles };
+  return { status: 'ok', articles: process(raw) };
 }
 
 export async function fetchTopHeadlines() {
   return fetchByCategory('general');
 }
 
-// ─── India: fetch multiple categories in parallel ─────────────────────────────
+// ─── India: 7 parallel fetches ────────────────────────────────────────────────
 async function fetchIndiaNews() {
-  // Fetch top Indian news + specific categories simultaneously
-  const fetches = [
+  const calls = [
     apiFetch({ country: 'in', language: 'en', size: 10 }),
     apiFetch({ country: 'in', language: 'en', size: 10, category: 'top' }),
     apiFetch({ country: 'in', language: 'en', size: 10, category: 'politics' }),
@@ -90,27 +127,22 @@ async function fetchIndiaNews() {
     apiFetch({ country: 'in', language: 'en', size: 10, category: 'business' }),
     apiFetch({ country: 'in', language: 'en', size: 10, category: 'entertainment' }),
     apiFetch({ country: 'in', language: 'en', size: 10, category: 'technology' }),
+    apiFetch({ country: 'in', language: 'en', size: 10, category: 'health' }),
   ];
 
-  // Run all in parallel, ignore individual failures
-  const results = await Promise.allSettled(fetches);
-
-  const all = results
+  const results = await Promise.allSettled(calls);
+  const raw = results
     .filter(r => r.status === 'fulfilled')
     .flatMap(r => r.value)
-    .map(normalize)
     .filter(a => a.title);
 
-  const articles = sortNewest(dedup(all));
-
-  return { status: 'ok', articles };
+  return { status: 'ok', articles: process(raw) };
 }
 
 // ─── Search ───────────────────────────────────────────────────────────────────
 export async function searchNews(query) {
   const raw = await apiFetch({ language: 'en', q: query, size: 10 });
-  const articles = dedup(raw.map(normalize));
-  return { status: 'ok', articles };
+  return { status: 'ok', articles: process(raw) };
 }
 
 // ─── Date helpers ─────────────────────────────────────────────────────────────
