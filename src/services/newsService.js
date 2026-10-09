@@ -1,12 +1,11 @@
 import axios from 'axios';
 
-// GNews API key
 const API_KEY = '3948b34867317d54e1af49ea41d5cac1';
 
-// In dev: requests go to /gnews/... which Vite proxies to https://gnews.io/...
-// In prod (Vercel): requests go to /gnews/... which the vercel.json rewrites to gnews.io
-// This avoids CORS errors in both environments
-const BASE = '/gnews/api/v4';
+// Dev:  Vite proxy at /gnews → https://gnews.io  (set up in vite.config.js)
+// Prod: Vercel serverless function at /api/gnews  (set up in api/gnews.js)
+const IS_DEV = import.meta.env.DEV;
+const BASE   = IS_DEV ? '/gnews/api/v4' : '/api/gnews';
 
 const GNEWS_CATEGORIES = {
   general:       'general',
@@ -19,14 +18,26 @@ const GNEWS_CATEGORIES = {
 };
 
 async function get(endpoint, params) {
-  const response = await axios.get(`${BASE}/${endpoint}`, {
-    params: { ...params, apikey: API_KEY },
-  });
-  if (!response.data || !response.data.articles) {
-    throw new Error('Invalid response from news API');
+  let url, queryParams;
+
+  if (IS_DEV) {
+    // Dev: call /gnews/api/v4/<endpoint>?...&apikey=KEY
+    url         = `${BASE}/${endpoint}`;
+    queryParams = { ...params, apikey: API_KEY };
+  } else {
+    // Prod: call /api/gnews?endpoint=<endpoint>&...  (no apikey in URL, serverless adds it)
+    url         = BASE;
+    queryParams = { endpoint, ...params };
   }
+
+  const response = await axios.get(url, { params: queryParams });
+
+  if (!response.data || !response.data.articles) {
+    throw new Error(response.data?.errors?.[0] || 'No articles returned');
+  }
+
   return {
-    status: 'ok',
+    status:   'ok',
     articles: response.data.articles.map(normalizeArticle),
   };
 }
@@ -45,10 +56,10 @@ export async function fetchByCategory(category = 'general') {
 
 export async function searchNews(query) {
   return get('search', {
-    q: query,
-    lang: 'en',
-    max: 10,
-    sortby: 'publishedAt',
+    q:       query,
+    lang:    'en',
+    max:     10,
+    sortby:  'publishedAt',
   });
 }
 
