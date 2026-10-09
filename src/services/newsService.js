@@ -27,7 +27,6 @@ export async function fetchByCategory(category = 'general') {
     size:     10,
   };
 
-  // India: filter by country code 'in', sorted newest first
   if (isIndia) {
     params.country  = 'in';
     params.language = 'en';
@@ -44,6 +43,15 @@ export async function fetchByCategory(category = 'general') {
   let articles = response.data.results
     .filter(a => a.title)
     .map(normalizeArticle);
+
+  // Remove duplicates by title
+  const seen = new Set();
+  articles = articles.filter(a => {
+    const key = a.title.trim().toLowerCase();
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
 
   // Sort by newest first
   articles.sort((a, b) => new Date(b.publishedAt) - new Date(a.publishedAt));
@@ -67,12 +75,21 @@ export async function searchNews(query) {
   if (response.data.status !== 'success') {
     throw new Error(response.data.results?.message || 'Search failed');
   }
-  return {
-    status:   'ok',
-    articles: response.data.results
-      .filter(a => a.title)
-      .map(normalizeArticle),
-  };
+
+  let articles = response.data.results
+    .filter(a => a.title)
+    .map(normalizeArticle);
+
+  // Remove duplicates
+  const seen = new Set();
+  articles = articles.filter(a => {
+    const key = a.title.trim().toLowerCase();
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+
+  return { status: 'ok', articles };
 }
 
 function normalizeArticle(a) {
