@@ -1,0 +1,60 @@
+.hero {
+  position:relative; border-radius:20px; overflow:hidden;
+  cursor:pointer; height:460px; margin-bottom:24px;
+  transition:transform .3s ease;
+  animation:fadeUp .5s ease;
+}
+.hero:hover{transform:scale(1.005);}
+.hero:focus-visible{outline:2px solid var(--ai);outline-offset:2px;}
+
+.hero-img-wrap{position:absolute;inset:0;}
+.hero-img{width:100%;height:100%;object-fit:cover;transition:transform .7s ease;}
+.hero:hover .hero-img{transform:scale(1.04);}
+.hero-img-fb{width:100%;height:100%;display:flex;align-items:center;justify-content:center;}
+.hero-fb-icon{font-size:80px;opacity:.3;}
+.hero-overlay{
+  position:absolute;inset:0;
+  background:linear-gradient(to top,rgba(0,0,0,.95) 0%,rgba(0,0,0,.5) 50%,rgba(0,0,0,.1) 100%);
+}
+
+.hero-body{
+  position:absolute;bottom:0;left:0;right:0;
+  padding:36px; z-index:2;
+}
+
+.hero-tags{display:flex;align-items:center;gap:10px;margin-bottom:14px;flex-wrap:wrap;}
+.hero-tag{
+  color:#fff;font-size:10px;font-weight:800;letter-spacing:1.5px;
+  padding:4px 12px;border-radius:20px;
+}
+.hero-source{
+  background:rgba(255,255,255,.12);backdrop-filter:blur(8px);
+  color:rgba(255,255,255,.8);font-size:11px;font-weight:600;
+  padding:4px 12px;border-radius:20px;
+  border:1px solid rgba(255,255,255,.15);
+}
+.hero-time{color:rgba(255,255,255,.55);font-size:12px;}
+
+.hero-title{
+  font-size:clamp(20px,2.8vw,30px);font-weight:800;
+  color:#fff;line-height:1.3;margin-bottom:12px;
+  display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;
+}
+.hero-desc{
+  color:rgba(255,255,255,.65);font-size:14px;line-height:1.65;
+  margin-bottom:20px;
+  display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;
+}
+.hero-btn{
+  display:inline-flex;align-items:center;gap:8px;
+  color:#fff;border:none;padding:11px 22px;border-radius:12px;
+  font-size:13px;font-weight:700;cursor:pointer;
+  transition:opacity .2s,transform .2s;
+}
+.hero-btn:hover{opacity:.88;transform:translateY(-1px);}
+
+@media(max-width:768px){
+  .hero{height:320px;}
+  .hero-body{padding:20px;}
+  .hero-desc{display:none;}
+}

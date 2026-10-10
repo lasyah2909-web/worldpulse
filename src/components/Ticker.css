@@ -1,0 +1,29 @@
+.ticker {
+  display:flex; align-items:center;
+  height:38px; overflow:hidden;
+  background:linear-gradient(90deg,rgba(99,102,241,.08),rgba(16,185,129,.08));
+  border-top:1px solid rgba(99,102,241,.2);
+  border-bottom:1px solid rgba(16,185,129,.2);
+}
+.ticker-label {
+  display:flex; align-items:center; gap:6px;
+  background:linear-gradient(135deg,#6366f1,#10b981);
+  color:#fff; font-size:10px; font-weight:800; letter-spacing:2px;
+  padding:0 16px; height:100%; white-space:nowrap; flex-shrink:0;
+  box-shadow:4px 0 20px rgba(99,102,241,.4);
+}
+.ticker-dot{ width:6px;height:6px;background:#fff;border-radius:50%;animation:pulse 1s infinite; }
+.ticker-track{ flex:1; overflow:hidden; position:relative; }
+.ticker-track::before,.ticker-track::after{
+  content:''; position:absolute; top:0;bottom:0;width:40px;z-index:2;pointer-events:none;
+}
+.ticker-track::before{left:0;background:linear-gradient(to right,var(--bg-2),transparent);}
+.ticker-track::after{right:0;background:linear-gradient(to left,var(--bg-2),transparent);}
+.ticker-belt{
+  display:flex; align-items:center; white-space:nowrap;
+  animation:ticker 90s linear infinite; width:max-content;
+}
+.ticker-belt:hover{animation-play-state:paused;}
+.ticker-item{ display:inline-flex; align-items:center; gap:10px; color:var(--text-2); font-size:12.5px; padding:0 28px; }
+.ticker-item:hover{color:var(--text-1);}
+.ticker-bull{ color:var(--ai); font-size:7px; }
