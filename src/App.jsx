@@ -8,7 +8,7 @@ import Loader       from './components/Loader.jsx';
 import { fetchAI, fetchCyber } from './services/newsService.js';
 import './App.css';
 
-const REFRESH = 5 * 60 * 1000;
+const REFRESH = 30 * 60 * 1000; // 30 minutes — preserve rate limit (200 req/day)
 
 export default function App() {
   const [tab,         setTab]         = useState('ai');      // 'ai' | 'cyber'
