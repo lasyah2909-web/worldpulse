@@ -70,6 +70,7 @@ function norm(a) {
     articleId:   a.article_id,
     title:       a.title,
     description: a.description || '',
+    content:     a.content || '',          // keep full raw content
     url:         a.link,
     urlToImage:  a.image_url || `https://picsum.photos/seed/${seed}/800/450`,
     publishedAt: a.pubDate,
