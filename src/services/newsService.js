@@ -3,21 +3,23 @@ import axios from 'axios';
 const API_KEY = 'pub_c590ab86373e450eb95c3816460caf52';
 const BASE    = 'https://newsdata.io/api/1/latest';
 
-// ─── Core fetch — simple single keyword queries work best ──────────────────
-async function apiFetch(params) {
-  const res = await axios.get(BASE, {
-    params: { ...params, apikey: API_KEY, language: 'en', size: 10 },
-    timeout: 12000,
-  });
-  if (res.data.status !== 'success') throw new Error(res.data.results?.message || 'API error');
-  return res.data.results || [];
+// ─── Single keyword fetch — simple queries work best on free plan ──────────
+async function apiFetch(q) {
+  try {
+    const res = await axios.get(BASE, {
+      params: { apikey: API_KEY, language: 'en', size: 10, q },
+      timeout: 10000,
+    });
+    if (res.data.status !== 'success') return [];
+    return res.data.results || [];
+  } catch {
+    return []; // silently skip failed fetches
+  }
 }
 
-// ─── 3-level dedup ─────────────────────────────────────────────────────────
+// ─── Dedup: article_id + normalised title + first-5-word slug ─────────────
 function dedup(articles) {
-  const ids    = new Set();
-  const titles = new Set();
-  const slugs  = new Set();
+  const ids = new Set(), titles = new Set(), slugs = new Set();
   return articles.filter(a => {
     if (!a.title) return false;
     if (a.articleId && ids.has(a.articleId)) return false;
@@ -32,9 +34,9 @@ function dedup(articles) {
   });
 }
 
-// ─── Normalise ─────────────────────────────────────────────────────────────
+// ─── Normalise to consistent shape ────────────────────────────────────────
 function norm(a) {
-  const seed = Math.abs((a.title||'x').split('').reduce((acc,c,i)=>acc+c.charCodeAt(0)*(i+1),0)) % 900 + 100;
+  const seed = Math.abs((a.title||'x').split('').reduce((n,c,i)=>n+c.charCodeAt(0)*(i+1),0)) % 900 + 100;
   return {
     articleId:   a.article_id,
     title:       a.title,
@@ -47,62 +49,64 @@ function norm(a) {
   };
 }
 
-function process(raw, filterFn) {
-  // Apply relevance filter if provided
-  const filtered = filterFn ? raw.filter(filterFn) : raw;
-  // Fall back to all if filter is too aggressive
-  const source   = filtered.length >= 5 ? filtered : raw;
-  return dedup(source.map(norm))
-    .sort((a,b) => new Date(b.publishedAt) - new Date(a.publishedAt));
+// ─── Process: normalise → filter → dedup → sort newest first ──────────────
+function process(raw, filterRe) {
+  const normed   = raw.filter(a => a.title).map(norm);
+  const filtered = normed.filter(a => filterRe.test(a.title + ' ' + a.description));
+  // Fallback: if strict filter removes too many, use all normalised
+  const source   = filtered.length >= 8 ? filtered : normed;
+  return dedup(source).sort((a,b) => new Date(b.publishedAt) - new Date(a.publishedAt));
 }
 
-// ─── AI Keywords filter ─────────────────────────────────────────────────────
-const AI_RE = /\b(artificial intelligence|machine learning|deep learning|neural network|chatgpt|gpt-?[0-9]|openai|gemini|claude|llm|large language model|generative ai|ai model|robotics|automation|nlp|computer vision|agi|anthropic|mistral|copilot|midjourney|stable diffusion|diffusion model|transformer|ai safety|ai regulation|ai chip|nvidia ai|google ai|microsoft ai|apple ai|meta ai|xai|grok|llama|ai startup|ai tool)\b/i;
+// ─── AI relevance filter ───────────────────────────────────────────────────
+const AI_RE = /\b(artificial intelligence|machine learning|deep learning|neural network|chatgpt|gpt-?[0-9o]|openai|gemini|claude|llm|large language model|generative ai|foundation model|robotics|nlp|computer vision|agi|anthropic|mistral|copilot|midjourney|stable diffusion|diffusion model|transformer model|ai safety|ai regulation|ai chip|ai startup|ai tool|ai system|ai researcher|ai company|language model|xai|grok|llama|hugging face|deepmind|nvidia ai|ai powered|ai driven|ai generated)\b/i;
 
-// ─── Cyber Keywords filter ──────────────────────────────────────────────────
-const CY_RE = /\b(cybersecurity|cyber security|hacker|hacking|data breach|ransomware|malware|phishing|vulnerability|cve-?\d|zero.?day|exploit|soc |siem|soar|xdr|mdr|threat intelligence|threat actor|infosec|information security|grc|compliance|nist|iso.?27001|firewall|endpoint security|incident response|forensic|pentest|penetration test|ddos|botnet|trojan|spyware|dark web|cyber attack|cyber threat|encryption|identity theft|password|authentication|casb|dlp|iam |privileged access|cloud security)\b/i;
+// ─── Cybersecurity + Security Audit relevance filter ──────────────────────
+const CY_RE = /\b(cybersecurity|cyber security|cyber attack|hacker|hacking|data breach|ransomware|malware|phishing|vulnerability|cve-?\d|zero.?day|exploit|soc |siem|soar|xdr|mdr|threat intelligence|threat actor|infosec|information security|grc|compliance|nist|iso.?27001|pci.?dss|hipaa|firewall|endpoint security|incident response|digital forensic|pentest|penetration test|ddos|botnet|trojan|spyware|dark web|encryption|identity theft|multi.?factor|authentication|privileged access|cloud security|security audit|security assessment|risk assessment|vulnerability assessment|code audit|audit finding|security posture|red team|blue team|purple team|threat model|security compliance|security framework|security operations|security breach|security incident|security flaw|security patch|patch management|security researcher|bug bounty|responsible disclosure|supply chain attack|third party risk)\b/i;
 
-// ─── AI News — 4 focused single-keyword fetches ────────────────────────────
+// ─── AI News: 6 focused fetches ───────────────────────────────────────────
 export async function fetchAI() {
-  const calls = [
-    apiFetch({ q: 'artificial intelligence' }),
-    apiFetch({ q: 'ChatGPT' }),
-    apiFetch({ q: 'OpenAI' }),
-    apiFetch({ q: 'machine learning' }),
-    apiFetch({ q: 'generative AI' }),
-    apiFetch({ q: 'LLM' }),
-  ];
-  const results = await Promise.allSettled(calls);
-  const raw     = results.filter(r=>r.status==='fulfilled').flatMap(r=>r.value);
-  const articles = process(raw, a => AI_RE.test((a.title||'')+' '+(a.description||'')));
+  const results = await Promise.allSettled([
+    apiFetch('artificial intelligence'),
+    apiFetch('ChatGPT'),
+    apiFetch('OpenAI'),
+    apiFetch('machine learning'),
+    apiFetch('generative AI'),
+    apiFetch('LLM AI'),
+  ]);
+  const raw      = results.filter(r=>r.status==='fulfilled').flatMap(r=>r.value);
+  const articles = process(raw, AI_RE);
   return { status: 'ok', articles };
 }
 
-// ─── Cyber News — 5 focused single-keyword fetches ─────────────────────────
+// ─── Cyber + Security Audit News: 8 focused fetches ──────────────────────
 export async function fetchCyber() {
-  const calls = [
-    apiFetch({ q: 'cybersecurity' }),
-    apiFetch({ q: 'hacking' }),
-    apiFetch({ q: 'ransomware' }),
-    apiFetch({ q: 'data breach' }),
-    apiFetch({ q: 'malware' }),
-    apiFetch({ q: 'cyber attack' }),
-    apiFetch({ q: 'vulnerability' }),
-  ];
-  const results = await Promise.allSettled(calls);
-  const raw     = results.filter(r=>r.status==='fulfilled').flatMap(r=>r.value);
-  const articles = process(raw, a => CY_RE.test((a.title||'')+' '+(a.description||'')));
+  const results = await Promise.allSettled([
+    apiFetch('cybersecurity'),
+    apiFetch('data breach'),
+    apiFetch('ransomware'),
+    apiFetch('malware'),
+    apiFetch('cyber attack'),
+    apiFetch('security audit'),
+    apiFetch('vulnerability'),
+    apiFetch('hacking'),
+  ]);
+  const raw      = results.filter(r=>r.status==='fulfilled').flatMap(r=>r.value);
+  const articles = process(raw, CY_RE);
   return { status: 'ok', articles };
 }
 
-// ─── Search ─────────────────────────────────────────────────────────────────
+// ─── Search within a section ──────────────────────────────────────────────
 export async function searchInSection(query, section) {
-  const raw = await apiFetch({ q: query });
-  const filterFn = section === 'ai' ? (a => AI_RE.test((a.title||'')+' '+(a.description||''))) : null;
-  return { status: 'ok', articles: process(raw, filterFn) };
+  const raw      = await apiFetch(query);
+  const filterRe = section === 'ai' ? AI_RE : CY_RE;
+  const normed   = raw.filter(a=>a.title).map(norm);
+  // For search, don't filter — show all matching the query
+  const articles = dedup(normed).sort((a,b)=>new Date(b.publishedAt)-new Date(a.publishedAt));
+  return { status: 'ok', articles };
 }
 
-// ─── Helpers ────────────────────────────────────────────────────────────────
+// ─── Date helpers ─────────────────────────────────────────────────────────
 export function timeAgo(d) {
   if (!d) return '';
   const s = Math.floor((Date.now() - new Date(d)) / 1000);
@@ -115,5 +119,8 @@ export function timeAgo(d) {
 
 export function fullDate(d) {
   if (!d) return '';
-  return new Date(d).toLocaleString([],{month:'short',day:'numeric',year:'numeric',hour:'2-digit',minute:'2-digit'});
+  return new Date(d).toLocaleString([],{
+    month:'short', day:'numeric', year:'numeric',
+    hour:'2-digit', minute:'2-digit',
+  });
 }
